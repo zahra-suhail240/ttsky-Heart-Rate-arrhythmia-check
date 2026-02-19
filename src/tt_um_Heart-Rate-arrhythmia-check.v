@@ -5,7 +5,7 @@
 
 `default_nettype none
 
-module tt_um_example (
+module tt_um_Heart_Rate_arrhythmia_check (
     input  wire [7:0] ui_in,    // Dedicated inputs
     output wire [7:0] uo_out,   // Dedicated outputs
     input  wire [7:0] uio_in,   // IOs: Input path
@@ -23,5 +23,49 @@ module tt_um_example (
 
   // List all unused inputs to prevent warnings
   wire _unused = &{ena, clk, rst_n, 1'b0};
+
+  // Instantiate sub-modules here and connect them as needed (you define the ports)
+
+  clock_divider u_divider ( );
+
+  interval_detection u_interval ();
+
+  live_arrhythmia_comparator u_live_comp ();
+
+  final_analysis_comparator u_final ();
+
+
+endmodule
+
+
+/*
+SUB-MODULES
+You can define sub-modules here. Make sure to connect them properly in the main module above
+*/
+
+module clock_divider ();
+
+ 
+
+endmodule
+
+
+module interval_detection ();
+          
+
+
+endmodule
+
+
+module live_arrhythmia_comparator ();
+
+   
+
+endmodule
+
+
+module final_analysis_comparator ();
+
+
 
 endmodule
