@@ -2,7 +2,7 @@
 // 50 MHz -> 1 kHz clock (1 ms period)
 // clk_div toggles every 0.5 ms, so the full period is 1.0 ms.
 
-module clock_div (
+module clock_dividerms (
     input  wire clk,      // 50 MHz
     input  wire rst_n,    // active-low reset
     output reg  clk_div   // 1 kHz clock (1 ms period)
