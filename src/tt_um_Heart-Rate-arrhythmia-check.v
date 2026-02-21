@@ -25,10 +25,18 @@ module tt_um_Heart_Rate_arrhythmia_check (
   wire _unused = &{ena, clk, rst_n, 1'b0};
 
   // Instantiate sub-modules here and connect them as needed (you define the ports)
+ 
+ wire clk_div;
+ wire [11:0] rr_interval_ms;     // latest RR interval (ms)
+  wire new_rr;             // high for 1 cycle when new RR ready
 
-  clock_divider u_divider ( );
+  clock_divider u_divider ();
 
-  interval_detection u_interval ();
+  interval_detection u_interval (.clk_div(clk_div),
+                                  .rst_n (rst_n),
+                                  .pulse_in (ui_in[0]),           // heartbeat pulse input
+                                  .rr_interval_ms (rr_interval_ms),
+                                  .new_rr_pulse (new_rr));
 
   live_arrhythmia_comparator u_live_comp ();
 
@@ -47,12 +55,43 @@ module clock_divider ();
 
  
 
+
+
 endmodule
 
 
-module interval_detection ();
+module interval_detection (input  wire  clk_div,       //clock_divider
+                            input  wire rst_n,
+                            input  wire pulse_in,      // heartbeat pulse (e.g. ui_in[0] – assume rising edge per beat)
+                            output reg  [11:0] rr_interval_ms, // most recent RR in milliseconds
+                            output reg  new_rr_pulse   // high for 1 cycle when new RR is ready
+    );
           
 
+reg pulse_prev;
+    wire rising_edge = pulse_in & ~pulse_prev;
+
+    reg [11:0] counter;  // time since last beat
+
+    always @(posedge clk_div or negedge rst_n) begin
+        if (!rst_n) begin
+            pulse_prev     <= 1'b0;
+            counter        <= 12'd0;
+            rr_interval_ms <= 12'd0;
+            new_rr_pulse   <= 1'b0;
+        end else begin
+            pulse_prev     <= pulse_in;
+            new_rr_pulse   <= 1'b0;
+
+            if (rising_edge) begin
+                rr_interval_ms <= counter;
+                counter        <= 12'd0;
+                new_rr_pulse   <= 1'b1;
+            end else if (counter != 12'hFFF) begin
+                counter <= counter + 1'b1;   // saturate at 4095 ms (~15 bpm)
+            end
+        end
+    end
 
 endmodule
 
