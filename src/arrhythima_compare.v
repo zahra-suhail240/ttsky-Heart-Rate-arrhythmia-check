@@ -1,107 +1,64 @@
-/ arrhythmia_compare.v
-// Uses tick_1ms (1 ms strobe) to measure beat-to-beat interval in milliseconds.
-// On each beat_pulse, it classifies and updates counters.
-//
-// Thresholds (ms):
-//  - Tachy:  interval_ms <  600
-//  - Normal: 600 <= interval_ms <= 1000
-//  - Brady:  interval_ms > 1000
+module arrhythmia_compare (
+    input  wire        clk,            // use the SAME clock domain as interval_detection (clk_div / 1kHz) OR your main clk
+    input  wire        rst_n,
 
-module arrhythmia_compare #(
-    parameter integer COUNT_W = 16,  // width for type counters + total beats
-    parameter integer MS_W    = 20,  // width for ms interval counter (enough for many seconds)
-    parameter integer TACHY_MS_MAX = 600,
-    parameter integer BRADY_MS_MIN = 1000
-)(
-    input  wire clk,
-    input  wire rst_n,
+    input  wire [11:0] rr_interval_ms,  // from interval_detection
+    input  wire        new_rr_pulse,     // 1-cycle strobe when rr_interval_ms is updated
 
-    input  wire tick_1ms,     // 1-cycle pulse every 1 ms
-    input  wire beat_pulse,   // 1-cycle pulse when heartbeat detected
+    output reg  [1:0]  type_code,       // 00=tachy, 01=normal, 10=brady
+    output reg         tachy_flag,
+    output reg         normal_flag,
+    output reg         brady_flag,
 
-    // Live outputs (update on each beat, hold until next beat)
-    output reg  [1:0] type_code,     // 00=tachy, 01=normal, 10=brady, 11=reserved
-    output reg        tachy_flag,
-    output reg        normal_flag,
-    output reg        brady_flag,
-
-    // Debug: last measured interval in ms
-    output reg  [MS_W-1:0] last_interval_ms,
-
-    // Counters
-    output reg  [COUNT_W-1:0] total_beats,
-    output reg  [COUNT_W-1:0] tachy_count,
-    output reg  [COUNT_W-1:0] normal_count,
-    output reg  [COUNT_W-1:0] brady_count
+    output reg  [15:0] total_beats,
+    output reg  [15:0] tachy_count,
+    output reg  [15:0] normal_count,
+    output reg  [15:0] brady_count
 );
 
-    // Counts milliseconds since last beat
-    reg [MS_W-1:0] ms_counter;
-
-    // 1) Time measurement: count ms between beats
-    always @(posedge clk) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            ms_counter <= {MS_W{1'b0}};
-        end else begin
-            if (tick_1ms) begin
-                ms_counter <= ms_counter + {{(MS_W-1){1'b0}}, 1'b1};
-            end
-
-            if (beat_pulse) begin
-                ms_counter <= {MS_W{1'b0}};
-            end
-        end
-    end
-
-    // 2) Classify + update counts on beat
-    always @(posedge clk) begin
-        if (!rst_n) begin
-            type_code <= 2'b01; // default normal
-            tachy_flag <= 1'b0;
+            type_code   <= 2'b01;
+            tachy_flag  <= 1'b0;
             normal_flag <= 1'b1;
-            brady_flag <= 1'b0;
+            brady_flag  <= 1'b0;
 
-            last_interval_ms <= {MS_W{1'b0}};
-
-            total_beats  <= {COUNT_W{1'b0}};
-            tachy_count  <= {COUNT_W{1'b0}};
-            normal_count <= {COUNT_W{1'b0}};
-            brady_count  <= {COUNT_W{1'b0}};
+            total_beats  <= 16'd0;
+            tachy_count  <= 16'd0;
+            normal_count <= 16'd0;
+            brady_count  <= 16'd0;
         end else begin
-            if (beat_pulse) begin
-                // Latch the interval ending "now"
-                last_interval_ms <= ms_counter;
+            if (new_rr_pulse) begin
+                // every new RR interval means we detected a beat
+                total_beats <= total_beats + 16'd1;
 
-                // Count total beats
-                total_beats <= total_beats + {{(COUNT_W-1){1'b0}}, 1'b1};
-
-                // Classify
-                if (ms_counter < TACHY_MS_MAX) begin
-                    // Tachy
+                // classify based on rr_interval_ms
+                if (rr_interval_ms < 12'd600) begin
+                    // Tachycardia (<0.6s)
                     type_code   <= 2'b00;
                     tachy_flag  <= 1'b1;
                     normal_flag <= 1'b0;
                     brady_flag  <= 1'b0;
 
-                    tachy_count <= tachy_count + {{(COUNT_W-1){1'b0}}, 1'b1};
+                    tachy_count <= tachy_count + 16'd1;
 
-                end else if (ms_counter <= BRADY_MS_MIN) begin
-                    // Normal (inclusive boundaries)
+                end else if (rr_interval_ms <= 12'd1000) begin
+                    // Normal (0.6s .. 1.0s)
                     type_code   <= 2'b01;
                     tachy_flag  <= 1'b0;
                     normal_flag <= 1'b1;
                     brady_flag  <= 1'b0;
 
-                    normal_count <= normal_count + {{(COUNT_W-1){1'b0}}, 1'b1};
+                    normal_count <= normal_count + 16'd1;
 
                 end else begin
-                    // Brady
+                    // Bradycardia (>1.0s)
                     type_code   <= 2'b10;
                     tachy_flag  <= 1'b0;
                     normal_flag <= 1'b0;
                     brady_flag  <= 1'b1;
 
-                    brady_count <= brady_count + {{(COUNT_W-1){1'b0}}, 1'b1};
+                    brady_count <= brady_count + 16'd1;
                 end
             end
         end
