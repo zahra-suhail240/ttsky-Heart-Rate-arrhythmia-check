@@ -30,7 +30,11 @@ module tt_um_Heart_Rate_arrhythmia_check (
  wire [11:0] rr_interval_ms;     // latest RR interval (ms)
   wire new_rr;             // high for 1 cycle when new RR ready
 
-  clock_divider u_divider ();
+  clock_div u_div (
+    .clk(clk),        // 50 MHz
+    .rst_n(rst_n),
+    .clk_div(clk_1khz)
+);
 
   interval_detection u_interval (.clk_div(clk_div),
                                   .rst_n (rst_n),
@@ -38,7 +42,27 @@ module tt_um_Heart_Rate_arrhythmia_check (
                                   .rr_interval_ms (rr_interval_ms),
                                   .new_rr_pulse (new_rr));
 
-  live_arrhythmia_comparator u_live_comp ();
+  arrhythmia_compare u_arrhythmia_compare (
+
+    .clk_div(clk_div),
+    .rst_n(rst_n),
+
+    .rr_interval_ms(rr_interval_ms),
+    .new_rr_pulse(new_rr_pulse),
+
+    .type_code(type_code),
+
+    .tachy_flag(tachy_flag),
+    .normal_flag(normal_flag),
+    .brady_flag(brady_flag),
+
+    .total_beats(total_beats),
+
+    .tachy_count(tachy_count),
+    .normal_count(normal_count),
+    .brady_count(brady_count)
+
+);
 
   final_analysis_comparator u_final ();
 
